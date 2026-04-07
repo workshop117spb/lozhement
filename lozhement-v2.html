@@ -478,13 +478,21 @@ input:checked+.slider::before{transform:translateX(18px);background:var(--accent
 
 <div class="sec">
   <div class="sec-title">Разработка макета</div>
-  <div class="fld"><label>Уровень сложности макета</label>
-    <select id="designLevel" onchange="calcL()">
+  <div class="fld">
+    <label>Уровень сложности макета</label>
+    <select id="designLevel" onchange="onDesignLevelChange()">
       <option value="0" selected>Клиент принёс файл — 0 ₽</option>
       <option value="1">Простой макет (прямоугольники) — 350 ₽</option>
       <option value="2">Большой макет, мало вырезов — 1 000 ₽</option>
       <option value="3">Сложный макет с замерами — 2 000 ₽</option>
+      <option value="custom">Своя цена →</option>
     </select>
+  </div>
+  <div id="designCustomBlock" style="display:none;margin-top:8px">
+    <div class="fld">
+      <label>Стоимость макета (₽)</label>
+      <input type="number" id="designCustomPrice" value="0" min="0" oninput="calcL()">
+    </div>
   </div>
 </div>
 
@@ -601,12 +609,38 @@ input:checked+.slider::before{transform:translateX(18px);background:var(--accent
     </div>
   </div>
   <div id="lc-mat-section" style="display:none">
-    <div class="g3">
-      <div class="fld"><label>Цена листа (₽, без наценки)</label><input type="number" id="lc-mat-price" value="1200" min="0" oninput="calcLC()"></div>
+    <div class="fld" style="margin-bottom:10px">
+      <label>Цена листа</label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:end">
+        <div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Закупочная (₽)</div>
+          <input type="number" id="lc-mat-price" value="1200" min="0" oninput="lcUpdatePriceWithTax();calcLC()">
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:4px">С наценкой 20% (₽)</div>
+          <input type="number" id="lc-mat-price-tax" value="1440" min="0" oninput="lcUpdatePriceRaw();calcLC()">
+        </div>
+      </div>
+    </div>
+    <div class="g2 mb">
       <div class="fld"><label>Размер листа Ш (мм)</label><input type="number" id="lc-sheet-w" value="2050" min="100" oninput="calcLC()"></div>
       <div class="fld"><label>Размер листа В (мм)</label><input type="number" id="lc-sheet-h" value="3050" min="100" oninput="calcLC()"></div>
     </div>
-    <div class="info-box" style="margin-top:8px" id="lc-mat-info"></div>
+    <div class="g2 mb">
+      <div class="fld"><label>Размер детали Ш (мм)</label><input type="number" id="lc-det-w" value="300" min="1" oninput="calcLC()"></div>
+      <div class="fld"><label>Размер детали В (мм)</label><input type="number" id="lc-det-h" value="200" min="1" oninput="calcLC()"></div>
+    </div>
+    <div style="margin-bottom:8px">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:6px">Способ расчёта стоимости материала:</div>
+      <div class="mat-toggle">
+        <button class="mat-toggle-btn on" id="lcMatModeArea" onclick="setLCMatMode('area')">📐 По площади</button>
+        <button class="mat-toggle-btn" id="lcMatModeSheets" onclick="setLCMatMode('sheets')">📋 Целые листы</button>
+      </div>
+    </div>
+    <div id="lcMatCostInfo" style="margin-top:8px;padding:10px 14px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--rs);font-size:13px;color:var(--text2);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+      <span id="lcMatCostInfo-label" style="color:var(--text3)">Введите размеры детали для расчёта</span>
+      <span id="lcMatCostInfo-price" style="font-size:15px;font-weight:600;color:var(--accent2)"></span>
+    </div>
   </div>
 </div>
 
@@ -728,12 +762,19 @@ input:checked+.slider::before{transform:translateX(18px);background:var(--accent
   <div class="sec-title">Подготовка файла</div>
   <div class="fld">
     <label>Работа с макетом</label>
-    <select id="lc-design" onchange="calcLC()">
+    <select id="lc-design" onchange="onLCDesignChange()">
       <option value="0">Файл готов к резке — 0 ₽</option>
       <option value="500">Проверка и подготовка файла — 500 ₽</option>
       <option value="1500">Разработка простого макета — 1 500 ₽</option>
       <option value="3000">Разработка сложного макета — 3 000 ₽</option>
+      <option value="custom">Своя цена →</option>
     </select>
+  </div>
+  <div id="lcDesignCustomBlock" style="display:none;margin-top:8px">
+    <div class="fld">
+      <label>Стоимость макета (₽)</label>
+      <input type="number" id="lc-design-custom" value="0" min="0" oninput="calcLC()">
+    </div>
   </div>
 </div>
 
@@ -1051,7 +1092,7 @@ function gsFetch(params){
 }
 let currentCx=1.0, nestMode='none', matMode='area', lidMode='area';
 let currentShape='rect';
-let lcMode='svg', lcCx=1.0, matOwner='client';
+let lcMode='svg', lcCx=1.0, matOwner='client', lcMatMode='area';
 let svgCutM=0, svgCount=1;
 let nests=[], nestIdCounter=0;
 
@@ -2141,8 +2182,10 @@ function calcL(){
     if(g('assemblyTotalInfo')) g('assemblyTotalInfo').textContent=fmt(asmCostPer);
   }
   g('d-labor').textContent=hasAssembly?(fmtn(asm.mins*qty/60)+' ч · '+fmt((asm.mins/60)*masterRate*qty)):'—';
-  const designLevel=parseInt(g('designLevel').value)||0;
-  const designTotal=DESIGN_PRICES[designLevel];
+  const designLevelVal=g('designLevel').value;
+  const designTotal=designLevelVal==='custom'
+    ?(parseFloat(g('designCustomPrice').value)||0)
+    :DESIGN_PRICES[parseInt(designLevelVal)||0];
   const designPerUnit=designTotal/qty;
   g('d-design').textContent=fmt(designTotal)+' (1 раз на тираж)';
   const primePer=matCostPer+cutCostPer+asmCostPer+designPerUnit;
@@ -2221,6 +2264,34 @@ function setMatOwner(owner){
   calcLC();
 }
 
+function setLCMatMode(mode){
+  lcMatMode=mode;
+  if(g('lcMatModeArea')) g('lcMatModeArea').classList.toggle('on',mode==='area');
+  if(g('lcMatModeSheets')) g('lcMatModeSheets').classList.toggle('on',mode==='sheets');
+  calcLC();
+}
+
+function onDesignLevelChange(){
+  const val=g('designLevel').value;
+  g('designCustomBlock').style.display=val==='custom'?'block':'none';
+  calcL();
+}
+
+function onLCDesignChange(){
+  const val=g('lc-design').value;
+  g('lcDesignCustomBlock').style.display=val==='custom'?'block':'none';
+  calcLC();
+}
+
+function lcUpdatePriceWithTax(){
+  const f=g('lc-mat-price-tax');
+  if(f) f.value=Math.round(v('lc-mat-price')*1.20);
+}
+function lcUpdatePriceRaw(){
+  const f=g('lc-mat-price');
+  if(f) f.value=Math.round(v('lc-mat-price-tax')/1.20);
+}
+
 function onLCMatChange(){
   const mat=g('lc-mat').value;
   const d=LC_RATES[mat];
@@ -2230,6 +2301,7 @@ function onLCMatChange(){
   const curThick=parseInt(thickSel.value)||4;
   // Set mat price and sheet size
   g('lc-mat-price').value=d.matPrice;
+  if(g('lc-mat-price-tax')) g('lc-mat-price-tax').value=Math.round(d.matPrice*1.20);
   g('lc-sheet-w').value=d.sheetW;
   g('lc-sheet-h').value=d.sheetH;
   onLCThickChange();
@@ -2365,6 +2437,7 @@ function calcSvgLength(doc){
 // ═══════════════════════════════════════════════
 function calcLC(){
   if(!g('lc-qty')||!g('lc-rate')||!g('lc-mat'))return;
+  const qty=Math.max(1,v('lc-qty'));
   const cutRate=v('lc-rate');
   const cutMin=v('lc-min');
 
@@ -2425,19 +2498,41 @@ function calcLC(){
   // Материал
   let matCostPer=0;
   if(matOwner==='own'){
-    const matPrice=v('lc-mat-price');
+    const priceRaw=v('lc-mat-price');
+    const priceTaxField=g('lc-mat-price-tax');
+    const priceWithTax=priceTaxField?v('lc-mat-price-tax'):priceRaw*1.20;
     const sheetW=v('lc-sheet-w'),sheetH=v('lc-sheet-h');
-    // Простой расчёт: сколько листов на тираж (без раскроя деталей — только материал)
-    // Для резки на заказ считаем стоимость материала по площади детали
-    const mat=g('lc-mat').value;
-    const d=LC_RATES[mat];
-    // Площадь детали оценочно — из параметров или ввести отдельно
-    // Используем среднее: считаем листов по площади
     const sheetArea=sheetW*sheetH;
-    // Заглушка — 1 лист на заказ если не знаем геометрию
-    const matsPerOrder=Math.max(1,Math.ceil(qty/(Math.max(1,Math.floor(sheetArea/200000)))));
-    matCostPer=(matsPerOrder*matPrice*1.20)/qty;
-    g('lc-mat-info').textContent='Лист '+sheetW+'×'+sheetH+' мм · Цена с наценкой 20%: '+fmtn(matPrice*1.20)+' ₽';
+
+    // Размер детали — всегда из отдельных полей
+    const detW=Math.max(1,v('lc-det-w'));
+    const detH=Math.max(1,v('lc-det-h'));
+    const detailArea=detW*detH;
+
+    // Сколько деталей влезает на лист
+    const fitsA=detW<=sheetW&&detH<=sheetH?Math.floor(sheetW/detW)*Math.floor(sheetH/detH):0;
+    const fitsB=detH<=sheetW&&detW<=sheetH?Math.floor(sheetW/detH)*Math.floor(sheetH/detW):0;
+    const fitsOnSheet=Math.max(1,Math.max(fitsA,fitsB));
+
+    if(lcMatMode==='area'){
+      // По площади — пропорционально площади детали от листа
+      matCostPer=(detailArea/sheetArea)*priceWithTax;
+      const usagePct=Math.round(detailArea/sheetArea*100);
+      const usageColor=usagePct<30?'var(--red)':usagePct<70?'var(--accent)':'var(--green)';
+      if(g('lcMatCostInfo-label')) g('lcMatCostInfo-label').innerHTML=
+        'По площади · '+detW+'×'+detH+' мм · '+fitsOnSheet+' дет/лист · использование: <span style="color:'+usageColor+';font-weight:500">'+usagePct+'%</span>';
+      if(g('lcMatCostInfo-price')) g('lcMatCostInfo-price').textContent=fmtn(matCostPer)+' ₽ / дет.';
+    } else {
+      // Целые листы
+      const sheetsForQty=Math.ceil(qty/fitsOnSheet);
+      matCostPer=(sheetsForQty*priceWithTax)/qty;
+      if(g('lcMatCostInfo-label')) g('lcMatCostInfo-label').textContent=
+        'Целые листы · '+fitsOnSheet+' дет/лист · '+sheetsForQty+' '+(sheetsForQty===1?'лист':'листов')+' на тираж';
+      if(g('lcMatCostInfo-price')) g('lcMatCostInfo-price').textContent=fmtn(matCostPer)+' ₽ / дет.';
+    }
+  } else {
+    if(g('lcMatCostInfo-label')) g('lcMatCostInfo-label').textContent='Материал клиента';
+    if(g('lcMatCostInfo-price')) g('lcMatCostInfo-price').textContent='';
   }
 
   // Гравировка
@@ -2452,7 +2547,10 @@ function calcLC(){
   g('lc-r-eng-pct').textContent='';
 
   // Макет
-  const designCost=parseFloat(g('lc-design').value)||0;
+  const lcDesignVal=g('lc-design').value;
+  const designCost=lcDesignVal==='custom'
+    ?(parseFloat(g('lc-design-custom').value)||0)
+    :(parseFloat(lcDesignVal)||0);
   const designPer=designCost/qty;
 
   // Себестоимость
